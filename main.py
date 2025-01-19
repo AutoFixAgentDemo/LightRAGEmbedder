@@ -1,10 +1,7 @@
 import typer
 from enum import Enum
 import sys
-from lightrag import LightRAG
-from lightrag.llm import ollama_model_complete
 from loguru import logger
-from pymongo import MongoClient
 from lightrag import LightRAG, QueryParam
 from lightrag.llm import ollama_model_complete, ollama_embedding # import the function to use the LLM model
 from lightrag.utils import EmbeddingFunc
@@ -39,6 +36,7 @@ def main(
     llm_model: str = typer.Option(..., help="Name of the LLM model"),
     embed_model: str = typer.Option(..., help="Embedding model name"),
     llm_host: str = typer.Option("http://localhost:11434", help="LLM host address"),
+    rec_cnt:int=typer.Option(default=10, help="How many records will be parsed to LightRAG"),
 ):
     """
     Command-line interface for configuring a MongoDB and LLM-related deployment.
@@ -78,23 +76,16 @@ def main(
         typer.echo(f"An unexpected error occurred: {e}")
         collection = None
     with collection.find({}) as cursor:  
-        cnt=10
+        cnt=rec_cnt
         for document in tqdm(cursor,desc="Processing Records",):
             model= CVEDescription.model_validate({**document}) 
             #logger.info (f"Getting document {model.cve_meta.cve_number} with {str(model)}")
             insert_ready_model=RAGModel(cve_number=model.cve_meta.cve_number,title=model.cve_meta.title,desc=model.desc)
             #logger.info(f"CVE number: {model.cve_meta.cve_number} will insert the description {str(insert_ready_model)}")
             rag.insert(str(insert_ready_model))
-            
             cnt-=1
             if cnt==0:
                 break
-            
-
-    
-
-
-
 
 if __name__ == "__main__":
     typer.run(main)
