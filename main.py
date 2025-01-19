@@ -36,7 +36,7 @@ def main(
     llm_model: str = typer.Option(..., help="Name of the LLM model"),
     embed_model: str = typer.Option(..., help="Embedding model name"),
     llm_host: str = typer.Option("http://localhost:11434", help="LLM host address"),
-    rec_cnt:int=typer.Option(default=10, help="How many records will be parsed to LightRAG"),
+    rec_cnt:int=typer.Option(default=-1, help="How many records will be parsed to LightRAG. -1 for no limit"),
 ):
     """
     Command-line interface for configuring a MongoDB and LLM-related deployment.
@@ -75,17 +75,33 @@ def main(
     except Exception as e:
         typer.echo(f"An unexpected error occurred: {e}")
         collection = None
-    with collection.find({}) as cursor:  
-        cnt=rec_cnt
-        for document in tqdm(cursor,desc="Processing Records",):
-            model= CVEDescription.model_validate({**document}) 
-            #logger.info (f"Getting document {model.cve_meta.cve_number} with {str(model)}")
-            insert_ready_model=RAGModel(cve_number=model.cve_meta.cve_number,title=model.cve_meta.title,desc=model.desc)
-            #logger.info(f"CVE number: {model.cve_meta.cve_number} will insert the description {str(insert_ready_model)}")
-            rag.insert(str(insert_ready_model))
-            cnt-=1
-            if cnt==0:
-                break
+    with collection.find({}) as cursor:
+        if rec_cnt == -1:
+            # 不限制的情况下，使用 tqdm 不设置 total
+            with tqdm(cursor, desc="Processing Records (Unlimited)") as progress_bar:
+                for document in progress_bar:
+                    model = CVEDescription.model_validate({**document})
+                    insert_ready_model = RAGModel(
+                        cve_number=model.cve_meta.cve_number,
+                        title=model.cve_meta.title,
+                        desc=model.desc
+                    )
+                    rag.insert(str(insert_ready_model))
+        else:
+            # 限制记录数时，设置 tqdm 的 total
+            remaining_count = rec_cnt
+            with tqdm(cursor, desc="Processing Records", total=rec_cnt) as progress_bar:
+                for document in progress_bar:
+                    model = CVEDescription.model_validate({**document})
+                    insert_ready_model = RAGModel(
+                        cve_number=model.cve_meta.cve_number,
+                        title=model.cve_meta.title,
+                        desc=model.desc
+                    )
+                    rag.insert(str(insert_ready_model))
+                    remaining_count -= 1
+                    if remaining_count == 0:
+                        break
 
 if __name__ == "__main__":
     typer.run(main)
