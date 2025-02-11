@@ -19,7 +19,7 @@ Install LightRAG
 
 ```shell
 conda activate lightrag-embedder
-git clone https://github.com/iridium-soda/LightRAG.git #A repo forked from HKU-LightRAG
+git clone https://github.com/HKUDS/LightRAG.git
 cd lightrag
 pip install -e "."
 ```

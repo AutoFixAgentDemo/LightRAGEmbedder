@@ -173,3 +173,4 @@ cython_debug/
 vulnsrc
 cvefix
 /dickens/
+book.txt
