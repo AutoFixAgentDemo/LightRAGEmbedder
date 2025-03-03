@@ -34,3 +34,6 @@ Example:
 ```shell
 python3 main.py --mongo-host=<MONGO_HOST> --mongo-port=<MONGO_PORT> --target-db=vulnsrc --llm-model=qwen2.5:32b  --embed-model mxbai-embed-large:latest --llm-type=ollama --llm-host=<LLM_HOST>
 ```
+```shell
+python3 main.py  --target-db=vulnsrc --llm-model=qwen2.5:32b  --embed-model mxbai-embed-large:latest --llm-type=ollama --llm-host=http://172.17.0.16:11434 --mongo-host=172.17.0.15 --rec-cnt=10
+```

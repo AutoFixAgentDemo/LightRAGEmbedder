@@ -3,7 +3,7 @@ from enum import Enum
 import sys
 from loguru import logger
 from lightrag import LightRAG, QueryParam
-from lightrag.llm import ollama_model_complete, ollama_embedding # import the function to use the LLM model
+from lightrag.llm.ollama import ollama_model_complete, ollama_embed # import the function to use the LLM model
 from lightrag.utils import EmbeddingFunc
 from pymongo.errors import ConnectionFailure, ConfigurationError
 from pymongo import MongoClient
@@ -27,7 +27,18 @@ class LLMBackend(str, Enum):
     openai = "openai"
     azure_openai = "azure-openai"
     deepseek = "deepseek"
-
+def convert_model_to_string(model: CVEDescription) -> str:
+    """
+    Convert a BaseModel object to a string for insertion into the LightRAG.
+    """
+    return f"""
+    {model.cve_meta.cve_number} is a vulnerability with title {model.cve_meta.title}. There are several functions related to this vulnerability:
+    {chr(10).join([f"{func.function_name}: {func.general_purpose}" for func in model.desc.funcs_desc.functional_desc])}
+    {model.cve_meta.cve_number} is related to the following CWEs:{model.cve_meta.weaknesses}
+    {model.cve_meta.cve_number} is caused by the following flaws:{model.desc.sec_desc.description}: {model.desc.sec_desc.vulnerability_cause_details}
+    {model.cve_meta.cve_number} is fixed by deploying the following patch methods:{model.desc.sec_desc.patch_details}
+    """
+    # chr(10) is the \n to bypass the SyntaxError: f-string expression part cannot include a backslash
 def main(
     mongo_host: str = typer.Option("localhost", help="MongoDB host address"),
     mongo_port: int = typer.Option(27017, help="MongoDB port"),
@@ -53,7 +64,7 @@ def main(
         embedding_func=EmbeddingFunc(
             embedding_dim=1024,  # NOTE: Must match the embedding dimension of the model!
             max_token_size=8192,
-            func=lambda texts: ollama_embedding(
+            func=lambda texts: ollama_embed(
                 texts, embed_model=embed_model, host=llm_host
             ),
         ),
@@ -81,24 +92,16 @@ def main(
             with tqdm(cursor, desc="Processing Records (Unlimited)") as progress_bar:
                 for document in progress_bar:
                     model = CVEDescription.model_validate({**document})
-                    insert_ready_model = RAGModel(
-                        cve_number=model.cve_meta.cve_number,
-                        title=model.cve_meta.title,
-                        desc=model.desc
-                    )
-                    rag.insert(str(insert_ready_model))
+                    rag.insert(convert_model_to_string(model))
         else:
             # 限制记录数时，设置 tqdm 的 total
             remaining_count = rec_cnt
             with tqdm(cursor, desc="Processing Records", total=rec_cnt) as progress_bar:
                 for document in progress_bar:
                     model = CVEDescription.model_validate({**document})
-                    insert_ready_model = RAGModel(
-                        cve_number=model.cve_meta.cve_number,
-                        title=model.cve_meta.title,
-                        desc=model.desc
-                    )
-                    rag.insert(str(insert_ready_model))
+                    ins_str=convert_model_to_string(model)
+                    logger.debug(f"Processing {model.cve_meta.cve_number} with the following string:{ins_str}")
+                    rag.insert(ins_str)
                     remaining_count -= 1
                     if remaining_count == 0:
                         break
